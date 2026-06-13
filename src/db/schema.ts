@@ -198,11 +198,14 @@ export const narrationScripts = sqliteTable('narration_scripts', {
 export const generatedVideos = sqliteTable('generated_videos', {
   id: text('id').primaryKey().default(uuidDefault),
   projectId: text('project_id').notNull().references(() => projects.id),
-  videoType: text('video_type').default('final'),
-  status: text('status').default('pending').notNull(),
-  filePath: text('file_path'),
+  sceneId: text('scene_id').references(() => storyScenes.id),
+  klingTaskId: text('kling_task_id'),       // KlingタスクID
+  klingPrompt: text('kling_prompt'),         // 使用したプロンプト
+  videoUrl: text('video_url'),               // 完成動画URL
+  status: text('status').default('pending').notNull(), // pending|processing|completed|failed
+  errorMessage: text('error_message'),
   durationSec: integer('duration_sec'),
-  generationMeta: text('generation_meta'), // JSON
+  aspectRatio: text('aspect_ratio').default('16:9'),
   createdAt: text('created_at').default(nowSql),
 })
 
