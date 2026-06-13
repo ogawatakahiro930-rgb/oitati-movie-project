@@ -16,7 +16,7 @@ const createProjectSchema = z.object({
     personalityNotes: z.string().optional(),
     specialKeywords: z.array(z.string()).optional(),
   }),
-  videoStyleId: z.string().uuid().optional(),
+  videoStyleId: z.string().optional(),
 })
 
 export async function GET() {
@@ -30,7 +30,6 @@ export async function GET() {
     })
     .from(projects)
     .innerJoin(persons, eq(projects.personId, persons.id))
-    .orderBy(projects.createdAt)
 
   return NextResponse.json(rows)
 }
@@ -44,10 +43,17 @@ export async function POST(req: NextRequest) {
 
   const { title, person, videoStyleId } = parsed.data
 
-  const [newPerson] = await db.insert(persons).values(person).returning()
+  const [newPerson] = await db
+    .insert(persons)
+    .values({
+      ...person,
+      specialKeywords: person.specialKeywords ? JSON.stringify(person.specialKeywords) : null,
+    })
+    .returning()
+
   const [newProject] = await db
     .insert(projects)
-    .values({ title, personId: newPerson.id, videoStyleId })
+    .values({ title, personId: newPerson.id, videoStyleId: videoStyleId ?? null })
     .returning()
 
   return NextResponse.json({ project: newProject, person: newPerson }, { status: 201 })

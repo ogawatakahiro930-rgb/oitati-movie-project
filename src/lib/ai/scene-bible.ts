@@ -1,5 +1,5 @@
 import { anthropic } from './client'
-import type { StoryScene } from '@/db/schema'
+import type { ParsedScene } from '@/lib/types'
 import type { CharacterBibleData } from './character-bible'
 
 export type SceneBibleData = {
@@ -29,7 +29,7 @@ export type TransitionBibleData = {
 }
 
 export async function generateSceneBible(
-  scene: StoryScene,
+  scene: ParsedScene,
   characterBible: CharacterBibleData,
   videoStyleTone: string
 ): Promise<SceneBibleData> {
@@ -91,8 +91,8 @@ JSON以外は出力しないでください。
 }
 
 export async function generateTransitionBible(
-  fromScene: StoryScene,
-  toScene: StoryScene,
+  fromScene: ParsedScene,
+  toScene: ParsedScene,
   characterBible: CharacterBibleData
 ): Promise<TransitionBibleData> {
   const prompt = `

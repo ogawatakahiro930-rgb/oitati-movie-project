@@ -1,5 +1,5 @@
 import { anthropic } from './client'
-import type { StoryScene } from '@/db/schema'
+import type { ParsedScene } from '@/lib/types'
 import type { CharacterBibleData } from './character-bible'
 import type { SceneBibleData } from './scene-bible'
 import { getAgePeriod } from './scene-bible'
@@ -13,7 +13,7 @@ export type GeneratedScenePrompts = {
 // ★ 同一人物性保証の核心
 // consistencyAnchor を必ず先頭に配置し、年齢・感情・時代を重ねる
 export async function generateScenePrompts(
-  scene: StoryScene,
+  scene: ParsedScene,
   characterBible: CharacterBibleData,
   sceneBible: SceneBibleData
 ): Promise<GeneratedScenePrompts> {
@@ -80,7 +80,7 @@ JSON以外は出力しないでください。
 }
 
 export async function generateNarration(
-  scene: StoryScene,
+  scene: ParsedScene,
   characterBible: CharacterBibleData,
   videoStyleTone: string,
   personName: string

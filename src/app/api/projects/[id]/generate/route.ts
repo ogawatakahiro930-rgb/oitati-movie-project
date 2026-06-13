@@ -10,23 +10,19 @@ import { generateCharacterBible } from '@/lib/ai/character-bible'
 import { generateSceneBible, generateTransitionBible } from '@/lib/ai/scene-bible'
 import { generateScenePrompts, generateNarration } from '@/lib/ai/prompts'
 
+// SQLiteはJSON型がないのでtext↔objectの変換をここで行う
+const j = JSON.stringify
+
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: projectId } = await params
 
-  // プロジェクト・人物・スタイル取得
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, projectId))
+  const [project] = await db.select().from(projects).where(eq(projects.id, projectId))
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
-  const [person] = await db
-    .select()
-    .from(persons)
-    .where(eq(persons.id, project.personId))
+  const [person] = await db.select().from(persons).where(eq(persons.id, project.personId))
 
   const scenes = await db
     .select()
@@ -38,81 +34,94 @@ export async function POST(
     return NextResponse.json({ error: 'シーンが登録されていません' }, { status: 400 })
   }
 
+  // DBのJSON文字列フィールドを配列に戻す
+  const parsedScenes = scenes.map(s => ({
+    ...s,
+    emotionKeywords: s.emotionKeywords ? JSON.parse(s.emotionKeywords) as string[] : [],
+  }))
+
+  const parsedPerson = {
+    ...person,
+    specialKeywords: person.specialKeywords ? JSON.parse(person.specialKeywords) as string[] : [],
+  }
+
   let videoStyleTone = '感動的で温かみのある映像スタイル'
   if (project.videoStyleId) {
-    const [style] = await db
-      .select()
-      .from(videoStyles)
-      .where(eq(videoStyles.id, project.videoStyleId))
+    const [style] = await db.select().from(videoStyles).where(eq(videoStyles.id, project.videoStyleId))
     if (style) videoStyleTone = `${style.displayName}: ${style.description} (${style.visualTone})`
   }
 
-  // ステータス更新
   await db.update(projects).set({ status: 'generating' }).where(eq(projects.id, projectId))
 
   try {
-    // ─── STEP 1: Character Bible生成 ─────────────────────────
-    const photoAnalyses = ['アップロード済み写真から抽出した特徴（写真分析機能はVer2で追加）']
-    const characterBibleData = await generateCharacterBible(person, photoAnalyses, videoStyleTone)
+    // ─── STEP 1: Character Bible ────────────────────────────
+    const photoAnalyses = ['写真分析機能はVer2で実装予定。現在はプロフィール情報から生成します。']
+    const cb = await generateCharacterBible(parsedPerson, photoAnalyses, videoStyleTone)
 
-    await db
-      .insert(characterBibles)
-      .values({
-        projectId,
-        faceCoreFeatures: characterBibleData.faceCoreFeatures,
-        bodyType: characterBibleData.bodyType,
-        distinctiveMarks: characterBibleData.distinctiveMarks,
-        overallAtmosphere: characterBibleData.overallAtmosphere,
-        personalityVisuals: characterBibleData.personalityVisuals,
-        ageProgression: characterBibleData.ageProgression,
-        lifeStageStates: characterBibleData.lifeStageStates,
-        consistencyAnchor: characterBibleData.consistencyAnchor,
-      })
-      .onConflictDoUpdate({
-        target: characterBibles.projectId,
-        set: {
-          faceCoreFeatures: characterBibleData.faceCoreFeatures,
-          consistencyAnchor: characterBibleData.consistencyAnchor,
-          ageProgression: characterBibleData.ageProgression,
-          lifeStageStates: characterBibleData.lifeStageStates,
-        },
-      })
-
-    // ─── STEP 2: Scene Bible × シーン数 ──────────────────────
-    const sceneBibleMap: Record<string, Awaited<ReturnType<typeof generateSceneBible>>> = {}
-    for (const scene of scenes) {
-      const sbData = await generateSceneBible(scene, characterBibleData, videoStyleTone)
-      sceneBibleMap[scene.id] = sbData
-
-      await db
-        .insert(sceneBibles)
-        .values({ projectId, sceneId: scene.id, ...sbData })
-        .onConflictDoUpdate({
-          target: sceneBibles.sceneId,
-          set: sbData,
+    // 既存があれば上書き
+    const existing = await db.select().from(characterBibles).where(eq(characterBibles.projectId, projectId))
+    if (existing.length > 0) {
+      await db.update(characterBibles)
+        .set({
+          faceCoreFeatures: cb.faceCoreFeatures,
+          bodyType: cb.bodyType,
+          distinctiveMarks: cb.distinctiveMarks,
+          overallAtmosphere: cb.overallAtmosphere,
+          personalityVisuals: cb.personalityVisuals,
+          ageProgression: j(cb.ageProgression),
+          lifeStageStates: j(cb.lifeStageStates),
+          consistencyAnchor: cb.consistencyAnchor,
+          reviewed: false,
         })
+        .where(eq(characterBibles.projectId, projectId))
+    } else {
+      await db.insert(characterBibles).values({
+        projectId,
+        faceCoreFeatures: cb.faceCoreFeatures,
+        bodyType: cb.bodyType ?? '',
+        distinctiveMarks: cb.distinctiveMarks ?? '',
+        overallAtmosphere: cb.overallAtmosphere ?? '',
+        personalityVisuals: cb.personalityVisuals ?? '',
+        ageProgression: j(cb.ageProgression),
+        lifeStageStates: j(cb.lifeStageStates),
+        consistencyAnchor: cb.consistencyAnchor,
+      })
     }
 
-    // ─── STEP 3: Transition Bible × (シーン数-1) ─────────────
-    for (let i = 0; i < scenes.length - 1; i++) {
-      const from = scenes[i]
-      const to = scenes[i + 1]
-      const tbData = await generateTransitionBible(from, to, characterBibleData)
+    // ─── STEP 2: Scene Bible × シーン数 ─────────────────────
+    const sceneBibleMap: Record<string, Awaited<ReturnType<typeof generateSceneBible>>> = {}
+    for (const scene of parsedScenes) {
+      const sb = await generateSceneBible(scene, cb, videoStyleTone)
+      sceneBibleMap[scene.id] = sb
+
+      const existingSb = await db.select().from(sceneBibles).where(eq(sceneBibles.sceneId, scene.id))
+      if (existingSb.length > 0) {
+        await db.update(sceneBibles).set(sb).where(eq(sceneBibles.sceneId, scene.id))
+      } else {
+        await db.insert(sceneBibles).values({ projectId, sceneId: scene.id, ...sb })
+      }
+    }
+
+    // ─── STEP 3: Transition Bible × (シーン数-1) ────────────
+    for (let i = 0; i < parsedScenes.length - 1; i++) {
+      const from = parsedScenes[i]
+      const to = parsedScenes[i + 1]
+      const tb = await generateTransitionBible(from, to, cb)
 
       await db.insert(transitionBibles).values({
         projectId,
         fromSceneId: from.id,
         toSceneId: to.id,
-        ...tbData,
+        ...tb,
+        eraVisualCues: j(tb.eraVisualCues),
       })
     }
 
-    // ─── STEP 4: プロンプト生成 ───────────────────────────────
-    for (const scene of scenes) {
+    // ─── STEP 4 & 5: プロンプト + ナレーション ──────────────
+    for (const scene of parsedScenes) {
       const sb = sceneBibleMap[scene.id]
-      const promptData = await generateScenePrompts(scene, characterBibleData, sb)
+      const promptData = await generateScenePrompts(scene, cb, sb)
 
-      // 画像生成プロンプト
       await db.insert(generatedPrompts).values({
         projectId,
         sceneId: scene.id,
@@ -122,7 +131,6 @@ export async function POST(
         negativePrompt: promptData.negativePrompt,
       })
 
-      // 動画生成プロンプト
       await db.insert(generatedPrompts).values({
         projectId,
         sceneId: scene.id,
@@ -132,14 +140,7 @@ export async function POST(
         negativePrompt: promptData.negativePrompt,
       })
 
-      // ─── STEP 5: ナレーション ─────────────────────────────
-      const narrationText = await generateNarration(
-        scene,
-        characterBibleData,
-        videoStyleTone,
-        person.fullName
-      )
-
+      const narrationText = await generateNarration(scene, cb, videoStyleTone, parsedPerson.fullName)
       await db.insert(narrationScripts).values({
         projectId,
         sceneId: scene.id,
@@ -149,14 +150,10 @@ export async function POST(
     }
 
     await db.update(projects).set({ status: 'review' }).where(eq(projects.id, projectId))
-
-    return NextResponse.json({ success: true, message: '全工程の生成が完了しました' })
+    return NextResponse.json({ success: true })
   } catch (error) {
     await db.update(projects).set({ status: 'draft' }).where(eq(projects.id, projectId))
     console.error('AI生成エラー:', error)
-    return NextResponse.json(
-      { error: 'AI生成中にエラーが発生しました', detail: String(error) },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'AI生成中にエラーが発生しました', detail: String(error) }, { status: 500 })
   }
 }

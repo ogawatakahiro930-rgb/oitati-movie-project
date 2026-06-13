@@ -1,6 +1,11 @@
-import { neon } from '@neondatabase/serverless'
-import { drizzle } from 'drizzle-orm/neon-http'
+import Database from 'better-sqlite3'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
 import * as schema from './schema'
+import path from 'path'
 
-const sql = neon(process.env.DATABASE_URL!)
-export const db = drizzle(sql, { schema })
+const dbPath = path.join(process.cwd(), 'seitatchi.db')
+const sqlite = new Database(dbPath)
+sqlite.pragma('journal_mode = WAL')
+sqlite.pragma('foreign_keys = ON')
+
+export const db = drizzle(sqlite, { schema })

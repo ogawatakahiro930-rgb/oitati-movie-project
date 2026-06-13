@@ -23,11 +23,17 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const scenes = await db
+  const rows = await db
     .select()
     .from(storyScenes)
     .where(eq(storyScenes.projectId, id))
     .orderBy(asc(storyScenes.orderIndex))
+
+  // emotionKeywordsをstring[]に戻す
+  const scenes = rows.map(s => ({
+    ...s,
+    emotionKeywords: s.emotionKeywords ? JSON.parse(s.emotionKeywords) : [],
+  }))
 
   return NextResponse.json(scenes)
 }
@@ -43,9 +49,15 @@ export async function POST(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
+  const { emotionKeywords, ...rest } = parsed.data
+
   const [scene] = await db
     .insert(storyScenes)
-    .values({ projectId: id, ...parsed.data })
+    .values({
+      projectId: id,
+      ...rest,
+      emotionKeywords: emotionKeywords ? JSON.stringify(emotionKeywords) : null,
+    })
     .returning()
 
   return NextResponse.json(scene, { status: 201 })

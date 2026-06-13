@@ -10,5 +10,10 @@ export async function GET(
   const { id } = await params
   const [bible] = await db.select().from(characterBibles).where(eq(characterBibles.projectId, id))
   if (!bible) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  return NextResponse.json(bible)
+
+  return NextResponse.json({
+    ...bible,
+    ageProgression: JSON.parse(bible.ageProgression),
+    lifeStageStates: JSON.parse(bible.lifeStageStates),
+  })
 }

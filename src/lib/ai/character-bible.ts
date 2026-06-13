@@ -1,5 +1,5 @@
 import { anthropic } from './client'
-import type { Person, StoryScene } from '@/db/schema'
+import type { ParsedPerson } from '@/lib/types'
 
 export type AgeProgression = {
   infant: AgePeriod
@@ -47,7 +47,7 @@ export type CharacterBibleData = {
 }
 
 export async function generateCharacterBible(
-  person: Person,
+  person: ParsedPerson,
   photoAnalyses: string[],
   videoStyleTone: string
 ): Promise<CharacterBibleData> {
