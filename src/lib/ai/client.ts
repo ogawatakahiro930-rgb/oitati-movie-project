@@ -6,9 +6,9 @@ let _client: AnthropicClient | undefined
 
 function getClient(): AnthropicClient {
   if (!_client) {
-    _client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY!,
-    })
+    // BOM（﻿）が混入している場合に除去
+    const apiKey = (process.env.ANTHROPIC_API_KEY ?? '').replace(/^﻿/, '')
+    _client = new Anthropic({ apiKey })
   }
   return _client
 }
