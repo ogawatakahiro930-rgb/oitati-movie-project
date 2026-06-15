@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { anthropic } from '@/lib/ai/client'
 
+export const maxDuration = 60
+
 const EMOTIONAL_STAGES = ['hope', 'challenge', 'effort', 'turning_point', 'success', 'legacy', 'message']
 
 export async function POST(req: NextRequest) {
