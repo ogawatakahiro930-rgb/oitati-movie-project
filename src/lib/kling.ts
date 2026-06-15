@@ -19,9 +19,11 @@ function generateToken(keyId: string, keySecret: string): string {
   return `${signingInput}.${signature}`
 }
 
+const bom = /^﻿/
+
 function getCredentials() {
-  const keyId = process.env.KLING_ACCESS_KEY_ID
-  const keySecret = process.env.KLING_ACCESS_KEY_SECRET
+  const keyId = (process.env.KLING_ACCESS_KEY_ID ?? '').replace(bom, '')
+  const keySecret = (process.env.KLING_ACCESS_KEY_SECRET ?? '').replace(bom, '')
   if (!keyId || !keySecret) throw new Error('Kling APIキーが設定されていません')
   return { keyId, keySecret }
 }

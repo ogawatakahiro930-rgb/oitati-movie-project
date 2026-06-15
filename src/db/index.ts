@@ -6,12 +6,14 @@ type DB = ReturnType<typeof drizzle<typeof schema>>
 
 let _db: DB | undefined
 
+const bom = /^﻿/
+
 function getDb(): DB {
   if (!_db) {
     _db = drizzle(
       createClient({
-        url: process.env.TURSO_DATABASE_URL!,
-        authToken: process.env.TURSO_AUTH_TOKEN,
+        url: (process.env.TURSO_DATABASE_URL ?? '').replace(bom, ''),
+        authToken: (process.env.TURSO_AUTH_TOKEN ?? '').replace(bom, ''),
       }),
       { schema }
     )
