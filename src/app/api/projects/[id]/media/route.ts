@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/db'
 import { media } from '@/db/schema'
 import { eq, asc } from 'drizzle-orm'
-import { writeFile, mkdir } from 'fs/promises'
-import path from 'path'
+import { put } from '@vercel/blob'
 
 export async function GET(
   _req: NextRequest,
@@ -29,23 +28,16 @@ export async function POST(
 
   const mediaType = file.type.startsWith('video/') ? 'video' : 'photo'
   const ext = file.name.split('.').pop()?.toLowerCase() ?? 'bin'
-  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+  const filename = `uploads/${projectId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
 
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads', projectId)
-  await mkdir(uploadDir, { recursive: true })
-
-  const filePath = path.join(uploadDir, filename)
-  const buffer = Buffer.from(await file.arrayBuffer())
-  await writeFile(filePath, buffer)
-
-  const fileUrl = `/uploads/${projectId}/${filename}`
+  const blob = await put(filename, file, { access: 'public' })
 
   const [inserted] = await db.insert(media).values({
     projectId,
     mediaType,
     agePeriod: agePeriod || null,
-    filePath,
-    fileUrl,
+    filePath: blob.url,
+    fileUrl: blob.url,
     sceneId: sceneId || null,
   }).returning()
 

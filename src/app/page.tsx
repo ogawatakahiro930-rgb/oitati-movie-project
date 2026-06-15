@@ -38,7 +38,7 @@ export default function Dashboard() {
   useEffect(() => { loadProjects() }, [])
 
   const handleRestore = async (file: File) => {
-    if (!confirm('すべてのデータが復元ファイルの内容で上書きされます。\n現在のデータは消去されます。続けますか？')) return
+    if (!confirm('すべてのデータが復元ファイル（JSON）の内容で上書きされます。\n現在のデータは消去されます。続けますか？')) return
     setRestoring(true)
     setRestoreStatus('idle')
     setRestoreError('')
@@ -152,7 +152,7 @@ export default function Dashboard() {
             <input
               ref={restoreInputRef}
               type="file"
-              accept=".zip"
+              accept=".json"
               className="hidden"
               onChange={e => {
                 const f = e.target.files?.[0]

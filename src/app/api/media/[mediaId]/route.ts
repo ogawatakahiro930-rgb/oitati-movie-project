@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/db'
 import { media } from '@/db/schema'
 import { eq } from 'drizzle-orm'
-import { unlink } from 'fs/promises'
+import { del } from '@vercel/blob'
 
 export async function DELETE(
   _req: NextRequest,
@@ -14,9 +14,9 @@ export async function DELETE(
   if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   try {
-    await unlink(row.filePath)
+    if (row.fileUrl) await del(row.fileUrl)
   } catch {
-    // ファイルが既にない場合は無視
+    // Blob が既にない場合は無視
   }
 
   await db.delete(media).where(eq(media.id, mediaId))
