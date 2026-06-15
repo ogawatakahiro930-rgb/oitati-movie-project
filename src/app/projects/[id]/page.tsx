@@ -22,6 +22,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [mediaList, setMediaList] = useState<MediaRecord[]>([])
   const [uploading, setUploading] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState<string | null>(null)
   const [generatingVideoFor, setGeneratingVideoFor] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'character' | 'prompts' | 'narration' | 'videos' | 'media'>('overview')
   const [expandedScene, setExpandedScene] = useState<string | null>(null)
@@ -89,7 +90,16 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
   const handleGenerate = async () => {
     setGenerating(true)
-    await fetch(`/api/projects/${id}/generate`, { method: 'POST' })
+    setGenerateError(null)
+    try {
+      const res = await fetch(`/api/projects/${id}/generate`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setGenerateError(data.error ?? `AI生成に失敗しました (${res.status})`)
+      }
+    } catch {
+      setGenerateError('通信エラーが発生しました。再度お試しください。')
+    }
     await load()
     setGenerating(false)
   }
@@ -219,7 +229,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
   if (!project) return <div className="text-center py-20 text-gray-400">読み込み中...</div>
 
-  const hasGenerated = project.status !== 'draft' && project.status !== 'ready'
+  // 'generating' のままで characterBible が null = タイムアウトで固まった状態
+  const stuckGenerating = project.status === 'generating' && !characterBible
+  const hasGenerated = project.status !== 'draft' && project.status !== 'ready' && !stuckGenerating
   const imagePrompts = prompts.filter(p => p.promptType === 'image_generation')
   const videoPromptsList = prompts.filter(p => p.promptType === 'video_generation')
 
@@ -240,32 +252,38 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           <h1 className="text-2xl font-bold text-gray-800">{project.title}</h1>
           <p className="text-gray-400 text-sm mt-1">{scenes.length}シーン登録済み</p>
         </div>
-        {!hasGenerated && (
+        {(!hasGenerated || stuckGenerating) && (
           <button onClick={handleGenerate} disabled={generating || scenes.length === 0}
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:bg-gray-100 disabled:text-gray-300 text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-colors">
             <Sparkles className="w-4 h-4" />
-            {generating ? 'AI生成中...' : 'AI生成を開始'}
+            {generating ? 'AI生成中...' : stuckGenerating ? 'AI生成を再試行' : 'AI生成を開始'}
           </button>
         )}
-        {hasGenerated && (
+        {hasGenerated && !stuckGenerating && (
           <span className="bg-green-50 text-green-600 border border-green-200 text-xs font-medium px-3 py-1.5 rounded-full">
             生成完了
           </span>
         )}
       </div>
 
+      {generateError && (
+        <div className="border border-red-200 bg-red-50 rounded-2xl p-4 mb-6 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-red-700">AI生成エラー</p>
+            <p className="text-sm text-red-600 mt-0.5">{generateError}</p>
+          </div>
+        </div>
+      )}
+
       {generating && (
         <div className="border border-amber-200 bg-amber-50 rounded-2xl p-5 mb-6">
           <div className="flex items-center gap-3 mb-3">
             <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
-            <span className="font-semibold text-amber-700">AI生成処理中...</span>
+            <span className="font-semibold text-amber-700">AI生成処理中...（30〜60秒かかります）</span>
           </div>
           <div className="text-sm text-amber-600 space-y-1">
-            <p>1. Character Bible（同一人物性の確立）</p>
-            <p>2. Scene Bible × {scenes.length}シーン</p>
-            <p>3. Transition Bible × {scenes.length - 1}（連続性設計）</p>
-            <p>4. 映像プロンプト生成</p>
-            <p>5. ナレーション生成</p>
+            <p>Character Bible + Scene Bible × {scenes.length} + プロンプト + ナレーション（並列実行中）</p>
           </div>
         </div>
       )}

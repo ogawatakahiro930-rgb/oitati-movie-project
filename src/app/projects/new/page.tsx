@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronRight, ChevronLeft, Plus, X, Sparkles, Loader2 } from 'lucide-react'
+import { ChevronRight, ChevronLeft, Plus, X, Sparkles, Loader2, AlertCircle } from 'lucide-react'
 
 const VIDEO_STYLES = [
   { key: 'emotional',    name: '感動系',     desc: '温かみと涙を大切に',   emoji: '🎭' },
@@ -40,6 +40,7 @@ export default function NewProjectPage() {
   const [step, setStep] = useState(1)
   const [submitting, setSubmitting] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
+  const [suggestError, setSuggestError] = useState<string | null>(null)
 
   // Step 1
   const [title, setTitle] = useState('')
@@ -85,6 +86,7 @@ export default function NewProjectPage() {
   const handleSuggest = async () => {
     if (!lifeStoryText.trim()) return
     setSuggesting(true)
+    setSuggestError(null)
     try {
       const res = await fetch('/api/projects/suggest-scenes', {
         method: 'POST',
@@ -101,7 +103,9 @@ export default function NewProjectPage() {
         }),
       })
       const data = await res.json()
-      if (data.scenes) {
+      if (data.error) {
+        setSuggestError(data.error)
+      } else if (data.scenes) {
         setScenes(data.scenes.map((s: Omit<Scene, 'directionIntent'>) => ({
           ...s,
           ageAtScene: s.ageAtScene != null ? String(s.ageAtScene) : '',
@@ -111,6 +115,7 @@ export default function NewProjectPage() {
         setHasSuggested(true)
       }
     } catch (e) {
+      setSuggestError('通信エラーが発生しました。もう一度お試しください。')
       console.error(e)
     } finally {
       setSuggesting(false)
@@ -314,10 +319,17 @@ export default function NewProjectPage() {
               className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 disabled:from-gray-100 disabled:to-gray-100 disabled:text-gray-300 text-white font-semibold py-3 rounded-xl shadow-sm transition-all"
             >
               {suggesting
-                ? <><Loader2 className="w-4 h-4 animate-spin" />AIがシーンを分析中...</>
+                ? <><Loader2 className="w-4 h-4 animate-spin" />AIがシーンを分析中（10〜20秒）...</>
                 : <><Sparkles className="w-4 h-4" />{hasSuggested ? `${sceneCount}シーンで再提案する` : `AIで${sceneCount}シーンを提案する`}</>
               }
             </button>
+
+            {suggestError && (
+              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <p className="text-sm text-red-600">{suggestError}</p>
+              </div>
+            )}
           </div>
 
           {/* AI提案結果 / シーン一覧 */}

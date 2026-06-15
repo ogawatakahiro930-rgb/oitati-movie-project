@@ -67,7 +67,7 @@ JSON以外は出力しないでください。
 `
 
   const response = await anthropic.messages.create({
-    model: 'claude-opus-4-8',
+    model: 'claude-sonnet-4-6',
     max_tokens: 1200,
     messages: [{ role: 'user', content: prompt }],
   })
@@ -114,7 +114,7 @@ ${videoStyleTone}
 `
 
   const response = await anthropic.messages.create({
-    model: 'claude-opus-4-8',
+    model: 'claude-sonnet-4-6',
     max_tokens: 600,
     messages: [{ role: 'user', content: prompt }],
   })
