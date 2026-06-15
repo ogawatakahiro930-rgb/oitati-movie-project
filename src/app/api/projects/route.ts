@@ -15,6 +15,7 @@ const createProjectSchema = z.object({
     familyStructure: z.string().optional(),
     personalityNotes: z.string().optional(),
     specialKeywords: z.array(z.string()).optional(),
+    lifeStoryText: z.string().optional(),
   }),
   videoStyleId: z.string().optional(),
 })
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest) {
     .values({
       ...person,
       specialKeywords: person.specialKeywords ? JSON.stringify(person.specialKeywords) : null,
+      lifeStoryText: person.lifeStoryText ?? null,
     })
     .returning()
 

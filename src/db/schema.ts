@@ -21,6 +21,7 @@ export const persons = sqliteTable('persons', {
   familyStructure: text('family_structure'),
   personalityNotes: text('personality_notes'),
   specialKeywords: text('special_keywords'), // JSON string[]
+  lifeStoryText: text('life_story_text'),
   createdAt: text('created_at').default(nowSql),
 })
 
