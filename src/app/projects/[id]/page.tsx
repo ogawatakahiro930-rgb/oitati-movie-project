@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, use, useCallback, useRef } from 'react'
-import { Sparkles, BookOpen, Film, FileText, ChevronDown, ChevronUp, Copy, Check, Video, Play, Loader2, AlertCircle, Plus, Pencil, Trash2, X, Images, Upload } from 'lucide-react'
+import { Sparkles, BookOpen, Film, FileText, ChevronDown, ChevronUp, Copy, Check, Video, Play, Loader2, AlertCircle, Plus, Pencil, Trash2, X, Images, Upload, Save } from 'lucide-react'
 
 type Project = { id: string; title: string; status: string; personId: string; videoStyleId: string | null; createdAt: string }
 type Scene = { id: string; orderIndex: number; title: string; ageAtScene: number | null; yearAtScene: number | null; location: string | null; eventSummary: string; emotionKeywords: string[] | null; emotionalStage: string | null; directionIntent?: string | null; innerMonologue?: string | null }
@@ -28,6 +28,18 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [editingSceneId, setEditingSceneId] = useState<string | null>(null)
   const [addingScene, setAddingScene] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
+
+  // 編集・保存 state
+  const [editingBible, setEditingBible] = useState(false)
+  const [bibleAnchor, setBibleAnchor] = useState('')
+  const [bibleFace, setBibleFace] = useState('')
+  const [savingBible, setSavingBible] = useState(false)
+  const [editingPromptId, setEditingPromptId] = useState<string | null>(null)
+  const [promptDraft, setPromptDraft] = useState('')
+  const [savingPromptId, setSavingPromptId] = useState<string | null>(null)
+  const [editingNarrationId, setEditingNarrationId] = useState<string | null>(null)
+  const [narrationDraft, setNarrationDraft] = useState('')
+  const [savingNarrationId, setSavingNarrationId] = useState<string | null>(null)
 
   const loadVideos = useCallback(async () => {
     const res = await fetch(`/api/projects/${id}/videos`)
@@ -141,6 +153,68 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
   const copy = (text: string, key: string) => {
     navigator.clipboard.writeText(text); setCopied(key); setTimeout(() => setCopied(null), 2000)
+  }
+
+  const startEditBible = () => {
+    if (!characterBible) return
+    setBibleAnchor(characterBible.consistencyAnchor)
+    setBibleFace(characterBible.faceCoreFeatures)
+    setEditingBible(true)
+  }
+
+  const handleSaveBible = async () => {
+    setSavingBible(true)
+    const res = await fetch(`/api/projects/${id}/character-bible`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ consistencyAnchor: bibleAnchor, faceCoreFeatures: bibleFace }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setCharacterBible(updated)
+      setEditingBible(false)
+    }
+    setSavingBible(false)
+  }
+
+  const startEditPrompt = (prompt: Prompt) => {
+    setEditingPromptId(prompt.id)
+    setPromptDraft(prompt.promptContent)
+  }
+
+  const handleSavePrompt = async (promptId: string) => {
+    setSavingPromptId(promptId)
+    const res = await fetch(`/api/prompts/${promptId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ promptContent: promptDraft }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setPrompts(prev => prev.map(p => p.id === promptId ? { ...p, promptContent: updated.promptContent } : p))
+      setEditingPromptId(null)
+    }
+    setSavingPromptId(null)
+  }
+
+  const startEditNarration = (narration: Narration) => {
+    setEditingNarrationId(narration.id)
+    setNarrationDraft(narration.textContent)
+  }
+
+  const handleSaveNarration = async (narrationId: string) => {
+    setSavingNarrationId(narrationId)
+    const res = await fetch(`/api/narrations/${narrationId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ textContent: narrationDraft }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setNarrations(prev => prev.map(n => n.id === narrationId ? { ...n, textContent: updated.textContent } : n))
+      setEditingNarrationId(null)
+    }
+    setSavingNarrationId(null)
   }
 
   if (!project) return <div className="text-center py-20 text-gray-400">読み込み中...</div>
@@ -307,17 +381,56 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         characterBible ? (
           <div className="space-y-4">
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
-              <h3 className="text-sm font-bold text-amber-700 mb-2">Consistency Anchor（全プロンプトに注入）</h3>
-              <p className="text-sm font-mono text-gray-700 leading-relaxed">{characterBible.consistencyAnchor}</p>
-              <button onClick={() => copy(characterBible.consistencyAnchor, 'anchor')}
-                className="mt-3 flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium">
-                {copied === 'anchor' ? <><Check className="w-3 h-3 text-green-500" />コピー済み</> : <><Copy className="w-3 h-3" />コピー</>}
-              </button>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-bold text-amber-700">Consistency Anchor（全プロンプトに注入）</h3>
+                {!editingBible && (
+                  <button onClick={startEditBible} className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium">
+                    <Pencil className="w-3 h-3" />編集
+                  </button>
+                )}
+              </div>
+              {editingBible ? (
+                <textarea
+                  value={bibleAnchor}
+                  onChange={e => setBibleAnchor(e.target.value)}
+                  rows={5}
+                  className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-sm font-mono text-gray-700 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition resize-none"
+                />
+              ) : (
+                <>
+                  <p className="text-sm font-mono text-gray-700 leading-relaxed">{characterBible.consistencyAnchor}</p>
+                  <button onClick={() => copy(characterBible.consistencyAnchor, 'anchor')}
+                    className="mt-3 flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium">
+                    {copied === 'anchor' ? <><Check className="w-3 h-3 text-green-500" />コピー済み</> : <><Copy className="w-3 h-3" />コピー</>}
+                  </button>
+                </>
+              )}
             </div>
             <div className="bg-white border border-amber-100 rounded-2xl p-5">
               <h3 className="text-sm font-bold text-gray-500 mb-2">顔の核心特徴</h3>
-              <p className="text-sm text-gray-700">{characterBible.faceCoreFeatures}</p>
+              {editingBible ? (
+                <textarea
+                  value={bibleFace}
+                  onChange={e => setBibleFace(e.target.value)}
+                  rows={3}
+                  className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition resize-none"
+                />
+              ) : (
+                <p className="text-sm text-gray-700">{characterBible.faceCoreFeatures}</p>
+              )}
             </div>
+            {editingBible && (
+              <div className="flex gap-2">
+                <button onClick={() => setEditingBible(false)} disabled={savingBible}
+                  className="flex-1 border border-gray-200 text-gray-500 hover:bg-gray-50 py-2 rounded-xl text-sm transition-colors">
+                  キャンセル
+                </button>
+                <button onClick={handleSaveBible} disabled={savingBible}
+                  className="flex-1 flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:bg-gray-100 disabled:text-gray-300 text-white font-semibold py-2 rounded-xl text-sm transition-colors">
+                  {savingBible ? <><Loader2 className="w-4 h-4 animate-spin" />保存中...</> : <><Save className="w-4 h-4" />保存</>}
+                </button>
+              </div>
+            )}
             <div className="bg-white border border-amber-100 rounded-2xl p-5">
               <h3 className="text-sm font-bold text-gray-500 mb-3">年齢別変化マトリクス</h3>
               <div className="space-y-2">
@@ -343,8 +456,82 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               return (
                 <div key={scene.id} className="bg-white border border-amber-100 rounded-2xl shadow-sm p-5 space-y-4">
                   <h3 className="font-bold text-amber-600">Scene {i + 1}: {scene.title}</h3>
-                  {imgP && <PromptBlock label="画像生成（FLUX / Midjourney）" content={imgP.promptContent} copyKey={`img-${scene.id}`} copied={copied} onCopy={copy} />}
-                  {vidP && <PromptBlock label="動画生成（Runway / Kling）" content={vidP.promptContent} copyKey={`vid-${scene.id}`} copied={copied} onCopy={copy} />}
+                  {imgP && (
+                    editingPromptId === imgP.id ? (
+                      <div className="space-y-2">
+                        <span className="text-xs font-bold text-gray-500">画像生成（FLUX / Midjourney）</span>
+                        <textarea
+                          value={promptDraft}
+                          onChange={e => setPromptDraft(e.target.value)}
+                          rows={5}
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono text-gray-700 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition resize-none"
+                        />
+                        <div className="flex gap-2">
+                          <button onClick={() => setEditingPromptId(null)}
+                            className="flex-1 border border-gray-200 text-gray-500 hover:bg-gray-50 py-1.5 rounded-xl text-sm transition-colors">
+                            キャンセル
+                          </button>
+                          <button onClick={() => handleSavePrompt(imgP.id)} disabled={savingPromptId === imgP.id}
+                            className="flex-1 flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-400 disabled:bg-gray-100 disabled:text-gray-300 text-white font-semibold py-1.5 rounded-xl text-sm transition-colors">
+                            {savingPromptId === imgP.id ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />保存中...</> : <><Save className="w-3.5 h-3.5" />保存</>}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-bold text-gray-500">画像生成（FLUX / Midjourney）</span>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => startEditPrompt(imgP)} className="flex items-center gap-1 text-xs text-gray-400 hover:text-amber-600 font-medium">
+                              <Pencil className="w-3 h-3" />編集
+                            </button>
+                            <button onClick={() => copy(imgP.promptContent, `img-${scene.id}`)} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 font-medium">
+                              {copied === `img-${scene.id}` ? <><Check className="w-3 h-3 text-green-500" />コピー済み</> : <><Copy className="w-3 h-3" />コピー</>}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-600 font-mono leading-relaxed">{imgP.promptContent}</div>
+                      </div>
+                    )
+                  )}
+                  {vidP && (
+                    editingPromptId === vidP.id ? (
+                      <div className="space-y-2">
+                        <span className="text-xs font-bold text-gray-500">動画生成（Runway / Kling）</span>
+                        <textarea
+                          value={promptDraft}
+                          onChange={e => setPromptDraft(e.target.value)}
+                          rows={5}
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono text-gray-700 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition resize-none"
+                        />
+                        <div className="flex gap-2">
+                          <button onClick={() => setEditingPromptId(null)}
+                            className="flex-1 border border-gray-200 text-gray-500 hover:bg-gray-50 py-1.5 rounded-xl text-sm transition-colors">
+                            キャンセル
+                          </button>
+                          <button onClick={() => handleSavePrompt(vidP.id)} disabled={savingPromptId === vidP.id}
+                            className="flex-1 flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-400 disabled:bg-gray-100 disabled:text-gray-300 text-white font-semibold py-1.5 rounded-xl text-sm transition-colors">
+                            {savingPromptId === vidP.id ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />保存中...</> : <><Save className="w-3.5 h-3.5" />保存</>}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-bold text-gray-500">動画生成（Runway / Kling）</span>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => startEditPrompt(vidP)} className="flex items-center gap-1 text-xs text-gray-400 hover:text-amber-600 font-medium">
+                              <Pencil className="w-3 h-3" />編集
+                            </button>
+                            <button onClick={() => copy(vidP.promptContent, `vid-${scene.id}`)} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 font-medium">
+                              {copied === `vid-${scene.id}` ? <><Check className="w-3 h-3 text-green-500" />コピー済み</> : <><Copy className="w-3 h-3" />コピー</>}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-600 font-mono leading-relaxed">{vidP.promptContent}</div>
+                      </div>
+                    )
+                  )}
                   {imgP?.negativePrompt && (
                     <div>
                       <span className="text-xs text-red-500 font-bold">ネガティブプロンプト</span>
@@ -368,12 +555,40 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 <div key={scene.id} className="bg-white border border-amber-100 rounded-2xl shadow-sm p-5">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="font-bold text-amber-600">Scene {i + 1}: {scene.title}</h3>
-                    <button onClick={() => copy(narration.textContent, `nar-${scene.id}`)}
-                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 font-medium">
-                      {copied === `nar-${scene.id}` ? <><Check className="w-3 h-3 text-green-500" />コピー済み</> : <><Copy className="w-3 h-3" />コピー</>}
-                    </button>
+                    {editingNarrationId !== narration.id && (
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => startEditNarration(narration)} className="flex items-center gap-1 text-xs text-gray-400 hover:text-amber-600 font-medium">
+                          <Pencil className="w-3 h-3" />編集
+                        </button>
+                        <button onClick={() => copy(narration.textContent, `nar-${scene.id}`)}
+                          className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 font-medium">
+                          {copied === `nar-${scene.id}` ? <><Check className="w-3 h-3 text-green-500" />コピー済み</> : <><Copy className="w-3 h-3" />コピー</>}
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <p className="text-sm text-gray-700 leading-loose">{narration.textContent}</p>
+                  {editingNarrationId === narration.id ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={narrationDraft}
+                        onChange={e => setNarrationDraft(e.target.value)}
+                        rows={6}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 leading-loose focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition resize-none"
+                      />
+                      <div className="flex gap-2">
+                        <button onClick={() => setEditingNarrationId(null)}
+                          className="flex-1 border border-gray-200 text-gray-500 hover:bg-gray-50 py-1.5 rounded-xl text-sm transition-colors">
+                          キャンセル
+                        </button>
+                        <button onClick={() => handleSaveNarration(narration.id)} disabled={savingNarrationId === narration.id}
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-400 disabled:bg-gray-100 disabled:text-gray-300 text-white font-semibold py-1.5 rounded-xl text-sm transition-colors">
+                          {savingNarrationId === narration.id ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />保存中...</> : <><Save className="w-3.5 h-3.5" />保存</>}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-700 leading-loose">{narration.textContent}</p>
+                  )}
                 </div>
               ) : null
             })}
