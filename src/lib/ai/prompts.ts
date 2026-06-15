@@ -73,10 +73,11 @@ JSON以外は出力しないでください。
   })
 
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
-  const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) throw new Error(`プロンプト生成に失敗: ${scene.title}`)
+  const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+  const raw = codeBlock ? codeBlock[1] : (text.match(/\{[\s\S]*\}/) ?? [])[0]
+  if (!raw) throw new Error(`プロンプト生成に失敗: ${scene.title}`)
 
-  return JSON.parse(jsonMatch[0]) as GeneratedScenePrompts
+  return JSON.parse(raw) as GeneratedScenePrompts
 }
 
 export async function generateNarration(

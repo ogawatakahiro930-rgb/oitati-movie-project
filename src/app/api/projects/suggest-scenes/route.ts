@@ -60,13 +60,20 @@ ${lifeStoryText}
 
   const text = message.content[0].type === 'text' ? message.content[0].text : ''
 
-  const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) {
+  // コードブロック内のJSONを優先して抽出、なければ {} ブロックを探す
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+  const rawJson = codeBlockMatch ? codeBlockMatch[1] : (text.match(/\{[\s\S]*\}/) ?? [])[0]
+  if (!rawJson) {
     return NextResponse.json({ error: 'AI応答の解析に失敗しました' }, { status: 500 })
   }
 
-  const parsed = JSON.parse(jsonMatch[0])
-  const scenes = (parsed.scenes ?? []).slice(0, sceneCount).map((s: Record<string, unknown>) => ({
+  let parsed: { scenes?: Record<string, unknown>[] }
+  try {
+    parsed = JSON.parse(rawJson)
+  } catch {
+    return NextResponse.json({ error: 'AI応答のJSON解析に失敗しました' }, { status: 500 })
+  }
+  const scenes = (parsed.scenes ?? []).slice(0, sceneCount).map((s) => ({
     title: String(s.title ?? ''),
     ageAtScene: typeof s.ageAtScene === 'number' ? s.ageAtScene : null,
     yearAtScene: typeof s.yearAtScene === 'number' ? s.yearAtScene : null,

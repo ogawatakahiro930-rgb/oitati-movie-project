@@ -84,10 +84,11 @@ JSON以外は出力しないでください。
   })
 
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
-  const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) throw new Error(`Scene Bible生成に失敗: ${scene.title}`)
+  const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+  const raw = codeBlock ? codeBlock[1] : (text.match(/\{[\s\S]*\}/) ?? [])[0]
+  if (!raw) throw new Error(`Scene Bible生成に失敗: ${scene.title}`)
 
-  return JSON.parse(jsonMatch[0]) as SceneBibleData
+  return JSON.parse(raw) as SceneBibleData
 }
 
 export async function generateTransitionBible(
@@ -139,10 +140,11 @@ JSON以外は出力しないでください。
   })
 
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
-  const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) throw new Error(`Transition Bible生成に失敗: ${fromScene.title}→${toScene.title}`)
+  const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+  const raw = codeBlock ? codeBlock[1] : (text.match(/\{[\s\S]*\}/) ?? [])[0]
+  if (!raw) throw new Error(`Transition Bible生成に失敗: ${fromScene.title}→${toScene.title}`)
 
-  return JSON.parse(jsonMatch[0]) as TransitionBibleData
+  return JSON.parse(raw) as TransitionBibleData
 }
 
 export function getAgePeriod(age: number | null | undefined): keyof CharacterBibleData['ageProgression'] {
